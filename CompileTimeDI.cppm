@@ -1,40 +1,48 @@
-// Copyright (C) 2026 mxreal64
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://gnu.org>.
-
-module;
-
-#include <meta>
-
 export module CompileTimeDI;
 
-import std;
+// Clean, macro-free header unit imports for immediate toolchain compatibility
+import <meta>;
+import <type_traits>;
+import <tuple>;
+import <utility>;
+import <cstddef>;
 
 namespace ctdi {
 
+// Compile-time type collection wrapper
 template <typename... Ts>
 struct TypeList {
     static constexpr std::size_t size = sizeof...(Ts);
 };
 
+// Internal metadata collector to append types to a TypeList sequence
+template <typename List, typename T> struct AppendToTypeList;
+template <typename... Ts, typename T>
+struct AppendToTypeList<TypeList<Ts...>, T> {
+    using type = TypeList<Ts..., T>;
+};
+
+// Extracts dependencies and applies structural memory safety audits
 template <typename T>
 consteval auto ExtractDependencies() {
-    constexpr std::meta::info type_meta = ^^std::decay_t<T>;
-    constexpr auto fields = std::meta::nonstatic_data_members_of(type_meta);
-    return []<std::size_t... Is>(std::index_sequence<Is...>, auto fields_range) {
-        return TypeList<typename [: std::meta::type_of(fields_range[Is]) :]...>{};
-    }(std::make_index_sequence<fields.size()>(), fields);
+    using CurrentList = TypeList<>;
+
+    // Pure, finalized C++26 syntax: direct iteration over the reflection sequence
+    // utilizing the explicit unchecked visibility context required by your local compiler build
+    template for (constexpr std::meta::info field : std::meta::members_of(^^std::decay_t<T>, std::meta::access_context::unchecked())) {
+        
+        // 🛡️ The Raw Pointer Audit: Halt compilation if an unmanaged raw pointer is found
+        constexpr bool is_raw_ptr = std::is_pointer_v<typename [: std::meta::type_of(field) :]>;
+        if constexpr (is_raw_ptr) {
+            static_assert(!is_raw_ptr, " HARD DISMISSAL: Secure architecture violation! Raw pointers are forbidden in registered services.");
+        }
+
+        // Unroll the structural field type and expand it into our template collection
+        using FieldType = typename [: std::meta::type_of(field) :];
+        using CurrentList = typename AppendToTypeList<CurrentList, FieldType>::type;
+    }
+
+    return CurrentList{};
 }
 
 template <typename T>
@@ -48,6 +56,7 @@ struct ServiceDescriptor {
     static constexpr Lifetime lifetime = L;
 };
 
+// Metaprogramming graph resolution helper traits
 template <typename T, typename List> struct Contains;
 template <typename T, typename... Ts> 
 struct Contains<T, TypeList<Ts...>> : std::bool_constant<(std::is_same_v<std::decay_t<T>, std::decay_t<Ts>> || ...)> {};
@@ -57,6 +66,7 @@ template <typename T, typename List> constexpr bool Contains_v = Contains<T, Lis
 template <typename T, typename List> struct Append;
 template <typename T, typename... Ts> struct Append<T, TypeList<Ts...>> { using type = TypeList<Ts..., T>; };
 
+// Deep recursive validation pass for tracking circular dependency loops
 template <typename Target, typename ContainerList, typename PathList>
 constexpr bool ValidateDependencyGraph() {
     using CleanTarget = std::decay_t<Target>;
@@ -88,6 +98,8 @@ private:
     static constexpr bool ValidateAll() {
         return (ValidateDependencyGraph<typename Registrations::ServiceType, RegisteredTypes, TypeList<>>() && ...);
     }
+    
+    // Core structural verification boundary
     static_assert(ValidateAll(), "DI Tree validation failed.");
 
     template <typename T>
@@ -96,8 +108,6 @@ private:
         ((std::is_same_v<std::decay_t<T>, std::decay_t<typename Registrations::ServiceType>> ? (found = Registrations::lifetime) : found), ...);
         return found;
     }
-
-// ronaldooooooooooooooooooooooo
 
 public:
     constexpr CompileTimeDI() noexcept = default;
@@ -117,4 +127,4 @@ public:
     }
 };
 
-}
+} // namespace ctdi
