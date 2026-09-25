@@ -2,8 +2,6 @@
 
 A blazing-fast, zero-allocation compile-time dependency injection (DI) container utilizing **C++26 Static Reflection** and modern **C++26 Named Modules**.
 
-`ctdi` serves as **Pillar 1 (The Builder)** of an upcoming non-strict compile-time safety framework. It automatically extracts struct field dependencies via static reflection, blocks runtime heap degradation via inline stack construction, and employs recursive static graph analysis alongside strict memory-safety audits to drop the hammer on bad architecture directly as explicit compiler errors.
-
 ## Key Features
 
 * **Automatic Field Subscript Injection**: Leverages modern C++26 reflection operator (`^^`) to pull target data fields without requiring manual token registrations, verbose configuration blocks, or macro decoration.
